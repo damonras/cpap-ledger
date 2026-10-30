@@ -1,0 +1,6 @@
+*.edf
+*.crc
+DATALOG/
+SETTINGS/
+.DS_Store
+Thumbs.db

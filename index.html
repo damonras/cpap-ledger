@@ -1,0 +1,1171 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>CPAP Ledger</title><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: phone-first, three bottom tabs (Overview, Night, Import). Night view is a stack of time-aligned tracks that share one zoomable x axis, like a polysomnography strip chart. */
+:root {
+  --bg: #eceff2;
+  --surface: #f9fafb;
+  --fg: #17222c;
+  --muted: #5b6a77;
+  --line: #d3dae1;
+  --accent: #19708e;
+  --accent-soft: #d7e9f0;
+  --accent-fg: #ffffff;
+  --good: #2b8758;
+  --warn: #b97d0b;
+  --crit: #c93a28;
+  --warn-soft: #f1e1bc;
+  --bar: rgba(249, 250, 251, 0.88);
+  --tab-on: #d7e9f0;
+  --shadow: 0 6px 24px rgba(23, 34, 44, 0.16);
+  --apnea: #c93a28;
+  --hypo: #d89a1a;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a; --surface: #151f28; --fg: #e5ecf2; --muted: #8f9eac; --line: #26333f;
+    --accent: #5db4d4; --accent-soft: #1b3441; --accent-fg: #07151c;
+    --good: #4cbd85; --warn: #e2ac3b; --crit: #ee6a57; --apnea: #ee6a57; --hypo: #e6ab32; --warn-soft: #3c3318; --bar: rgba(21, 31, 40, 0.82); --tab-on: #0a1218; --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a; --surface: #151f28; --fg: #e5ecf2; --muted: #8f9eac; --line: #26333f;
+  --accent: #5db4d4; --accent-soft: #1b3441; --accent-fg: #07151c;
+  --good: #4cbd85; --warn: #e2ac3b; --crit: #ee6a57; --apnea: #ee6a57; --hypo: #e6ab32; --warn-soft: #3c3318; --bar: rgba(21, 31, 40, 0.82); --tab-on: #0a1218; --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45; padding-inline: 16px; padding-block: 16px 104px; }
+.wrap { max-width: 980px; margin-inline: auto; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; font-weight: 650; }
+.eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+button, .btn { font: inherit; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; text-decoration: none; position: relative; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 0.85rem; }
+.btn:focus-visible, .tab:focus-visible, .seg button:focus-visible, input:focus-visible + .btn-face, select:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.danger { color: var(--crit); }
+input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.top p { margin: 0; font-size: 0.85rem; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--muted); min-height: 36px; padding: 0 14px; font-weight: 600; cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.row.between { justify-content: space-between; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.stat .v { font-family: var(--font-data); font-size: 1.55rem; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
+.stat .v small { font-size: 0.8rem; color: var(--muted); font-weight: 400; letter-spacing: 0; margin-left: 3px; }
+.stat .s { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 6px; }
+.chart h3 { font-size: 0.9rem; font-weight: 650; }
+.chart-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+canvas { display: block; width: 100%; touch-action: pan-y; }
+.readout { height: 118px; overflow: hidden; font-size: 0.85rem; display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 10px; padding-block: 10px; }
+.readout .rtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; }
+.readout .r1 { font-weight: 600; font-size: 0.95rem; min-width: 0; }
+.readout .rstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.readout .rstats > div { min-width: 0; }
+.readout .rstats .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; }
+.readout .rstats .v { font-family: var(--font-data); font-size: 0.9rem; white-space: nowrap; }
+.readout .btn { flex: none; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { padding: 8px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr:last-child td { border-bottom: 0; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--muted); }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.crit { background: var(--crit); }
+
+.nightnav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nightnav .title { flex: 1 1 160px; min-width: 0; }
+.nightnav input[type=date] { font: inherit; min-height: 42px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.tile .v { font-family: var(--font-data); font-size: 1.2rem; font-weight: 500; }
+.tile .v small { font-size: 0.72rem; color: var(--muted); margin-left: 3px; }
+.tile .s { font-size: 0.74rem; color: var(--muted); }
+
+.toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 8px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+.toolbar .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.toolbar .btns button { min-height: 34px; padding: 0 11px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; font-weight: 600; font-size: 0.82rem; cursor: pointer; }
+.toolbar .btns button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+#nt-readout { font-size: 0.8rem; height: 2.7em; line-height: 1.35; overflow: hidden; color: var(--muted); }
+.trk { position: relative; }
+.trk-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 6px 2px 2px; }
+.trk-h .name { font-size: 0.78rem; font-weight: 650; }
+.trk-h .name small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.trk-h .val { font-family: var(--font-data); font-size: 0.78rem; color: var(--muted); }
+.trackwrap { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px 10px 8px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+.evlist { display: flex; flex-direction: column; }
+.evlist button { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--fg); padding: 10px 2px; cursor: pointer; font: inherit; font-size: 0.85rem; }
+.evlist button:last-child { border-bottom: 0; }
+.evlist button:hover { background: var(--accent-soft); }
+
+.empty { text-align: left; padding: 28px 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.empty h2 { font-size: 1.2rem; }
+.empty p { margin: 0; max-width: 56ch; color: var(--muted); }
+ol.steps { margin: 6px 0 0; padding-left: 1.2em; max-width: 60ch; display: flex; flex-direction: column; gap: 6px; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.log { font-family: var(--font-data); font-size: 0.78rem; color: var(--muted); max-height: 180px; overflow: auto; white-space: pre-wrap; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width 0.1s; }
+
+
+/* Report card */
+.headline { font-size: 1.3rem; }
+.grows { display: flex; flex-direction: column; gap: 8px; }
+.grow { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.grow summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 64px; cursor: pointer; }
+.grow summary::-webkit-details-marker { display: none; }
+.grow summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
+.grow .grade { width: 42px; height: 42px; font-size: 1.3rem; }
+.grow .mid { flex: 1 1 auto; min-width: 0; }
+.grow .mid b { display: block; font-size: 0.98rem; font-weight: 650; }
+.grow .mid span { display: block; font-size: 0.85rem; color: var(--muted); }
+.grow .right { text-align: right; flex: none; }
+.grow .right .fig { font-family: var(--font-data); font-size: 1.15rem; font-weight: 500; line-height: 1.1; }
+.grow .right .u { font-size: 0.7rem; color: var(--muted); }
+.grow .chev { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s; }
+.grow[open] .chev { transform: rotate(90deg); }
+.grow .body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; }
+.grow .body p { margin: 0; }
+.grow .body .muted { font-size: 0.86rem; }
+.nextp { margin: 4px 0 0; font-size: 1.02rem; font-weight: 600; }
+.tiles2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
+.tile2 { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.tile2 .v { font-family: var(--font-data); font-size: 1.1rem; font-weight: 500; margin-top: 2px; display: flex; align-items: baseline; gap: 6px; }
+.tile2 .v i { font-style: normal; font-size: 0.95rem; }
+.tile2 .s { font-size: 0.74rem; color: var(--muted); }
+.tile2.better .v i { color: var(--good); } .tile2.worse .v i { color: var(--crit); } .tile2.same .v i { color: var(--muted); }
+
+.headline { font-size: 1.25rem; font-weight: 650; line-height: 1.3; max-width: 36ch; letter-spacing: -0.01em; }
+.lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 14px; }
+.lists h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.lists ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lists li { display: flex; gap: 0; align-items: flex-start; }
+.lists li .dot { flex: none; margin-top: 0.5em; }
+.cards-old { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+.gcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gcard .t { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.gcard .fig { font-family: var(--font-data); font-size: 1.7rem; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; margin-top: 6px; }
+.gcard .fig small { font-size: 0.78rem; color: var(--muted); letter-spacing: 0; font-weight: 400; margin-left: 4px; }
+.gcard p { margin: 0; }
+.grade { flex: none; width: 46px; height: 46px; border-radius: 10px; display: grid; place-items: center; font: 600 1.45rem var(--font-data); border: 2px solid currentColor; }
+.g-A { color: var(--good); } .g-B { color: var(--accent); } .g-C { color: var(--warn); } .g-D { color: var(--crit); } .g-N { color: var(--muted); }
+.gword { font-size: 0.78rem; font-weight: 600; margin-top: 4px; text-align: right; }
+.gcard details summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.85rem; min-height: 28px; display: flex; align-items: center; }
+.gcard details p { margin-top: 4px; color: var(--muted); font-size: 0.88rem; }
+.try { border-top: 1px solid var(--line); padding-top: 8px; font-size: 0.88rem; }
+.try .eyebrow { display: block; margin-bottom: 2px; }
+.next { display: flex; flex-direction: column; gap: 6px; }
+.next p { margin: 0; max-width: 62ch; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; max-width: 460px; }
+.cal .dow { font-size: 0.68rem; text-align: center; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; }
+.cal button, .cal span.blank { aspect-ratio: 1 / 1; max-width: 100%; border-radius: 6px; font: 0.7rem var(--font-data); padding: 0; }
+.cal button { border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.cal button.u0 { background: var(--warn-soft); border-color: var(--warn-soft); color: var(--fg); }
+.cal button.u1 { background: var(--accent-soft); border-color: var(--accent-soft); color: var(--fg); }
+.cal button.u2 { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.cal button:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.cal-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-top: 10px; }
+.cal-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--line); }
+.trend-b { font-weight: 600; } .trend-b.better { color: var(--good); } .trend-b.worse { color: var(--crit); } .trend-b.same { color: var(--muted); }
+.trend { display: flex; flex-direction: column; padding-block: 4px; }
+.trow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.trow:last-child { border-bottom: 0; }
+.trow .num { font-size: 0.78rem; }
+
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
+.tabs-in { pointer-events: auto; max-width: 520px; margin-inline: auto; display: flex; gap: 4px; padding: 6px; border-radius: 34px; background: var(--bar); border: 1px solid var(--line); box-shadow: var(--shadow); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); }
+.tab { flex: 1 1 0; min-width: 0; min-height: 58px; border: 0; background: transparent; color: var(--fg); border-radius: 28px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em; padding: 6px 4px; }
+.tab svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { background: var(--tab-on); color: var(--accent); }
+.tab[aria-selected="true"] svg { stroke-width: 2.2; }
+.foot { font-size: 0.78rem; color: var(--muted); margin-top: 8px; max-width: 70ch; }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div><div class="eyebrow">ResMed AirSense 10</div><h1>CPAP Ledger</h1></div>
+    <p class="muted" id="top-note"></p>
+  </div>
+
+  <!-- REPORT CARD -->
+  <section id="view-report" class="stack" hidden></section>
+
+  <!-- OVERVIEW -->
+  <section id="view-overview" class="stack" hidden>
+    <div class="row between">
+      <div class="seg" role="group" aria-label="Date range" id="range-seg">
+        <button data-r="30" aria-pressed="false">30 days</button>
+        <button data-r="90" aria-pressed="false">90 days</button>
+        <button data-r="365" aria-pressed="false">1 year</button>
+        <button data-r="all" aria-pressed="false">All</button>
+      </div>
+      <span class="muted num" id="range-label"></span>
+    </div>
+    <div class="stats" id="ov-stats"></div>
+    <div class="panel readout" id="ov-readout"><div class="rtop"><div class="r1 muted">Pick a night</div></div><div class="muted">Tap or hover a bar in any chart to see that night.</div></div>
+    <div class="chart"><div class="chart-h"><h3>Hours of use</h3><span class="muted" style="font-size:.78rem">dashed line = 4 h</span></div><canvas id="c-use"></canvas></div>
+    <div class="chart"><div class="chart-h"><h3>Apnea-hypopnea index</h3><span class="muted" style="font-size:.78rem">events per hour, dashed line = 5</span></div><canvas id="c-ahi"></canvas></div>
+    <div class="chart"><div class="chart-h"><h3>Unintentional leak, 95th percentile</h3><span class="muted" style="font-size:.78rem">L/min, dashed line = 24</span></div><canvas id="c-leak"></canvas></div>
+    <div class="tablewrap" style="max-height:420px"><table>
+      <thead><tr><th>Night</th><th>Use</th><th>AHI</th><th>Apnea</th><th>Hypopnea</th><th>Leak 95%</th><th>Mask P 95%</th></tr></thead>
+      <tbody id="ov-rows"></tbody></table></div>
+    <p class="foot">For personal viewing only. This is not a medical device. Check anything that worries you against ResMed's own reports or with your care team before changing therapy.</p>
+  </section>
+
+  <!-- NIGHT -->
+  <section id="view-night" class="stack" hidden>
+    <div class="nightnav">
+      <button class="btn small" id="n-prev" aria-label="Previous night">&#8249; Prev</button>
+      <div class="title"><div class="eyebrow">Night of</div><h2 id="n-title">&nbsp;</h2></div>
+      <input type="date" id="n-date" aria-label="Pick a night">
+      <button class="btn small" id="n-next" aria-label="Next night">Next &#8250;</button>
+    </div>
+    <div class="tiles" id="n-tiles"></div>
+    <div id="n-sessions" class="muted" style="font-size:.85rem"></div>
+    <div id="n-nodetail" class="panel" hidden>No waveform files are imported for this night. Import that night's DATALOG files to see the charts.</div>
+    <div id="n-detail" class="stack" hidden>
+      <div class="toolbar">
+        <div class="btns" id="zoom-btns">
+          <button data-z="all" aria-pressed="true">Whole night</button>
+          <button data-z="3600">1 h</button>
+          <button data-z="600">10 min</button>
+          <button data-z="120">2 min</button>
+          <button data-z="in" aria-label="Zoom in">+</button>
+          <button data-z="out" aria-label="Zoom out">&minus;</button>
+        </div>
+        <div id="nt-readout" class="num">Drag to pan, pinch or use + / &minus; to zoom, tap to read values.</div>
+      </div>
+      <div class="trackwrap">
+        <canvas id="c-over" aria-label="Night overview" style="touch-action:none"></canvas>
+        <canvas id="c-axis"></canvas>
+        <div id="tracks"></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--apnea)"></i>Apnea</span><span><i style="background:var(--hypo)"></i>Hypopnea</span><span><i style="background:var(--accent)"></i>Shaded band = event on every track</span></div>
+      <div class="panel"><div class="row between" style="margin-bottom:6px"><h2>Events</h2><span class="muted num" id="ev-count"></span></div><div class="evlist" id="ev-list"></div></div>
+    </div>
+  </section>
+
+  <!-- IMPORT -->
+  <section id="view-import" class="stack" hidden>
+    <div class="panel stack">
+      <h2>Import SD card data</h2>
+      <p class="muted" style="margin:0;max-width:62ch">Everything is read on this device. Nothing is uploaded and there is no account. Pick the files from the SD card and they are saved in this browser. Importing again only adds new nights.</p>
+      <ol class="steps">
+        <li>Put the SD card in a reader and open it in the Files app.</li>
+        <li>Choose <b>STR.edf</b> for the nightly summaries and charts across all nights.</li>
+        <li>Choose files from <b>DATALOG</b> (the .edf files ending in BRP, PLD, EVE or SAD) for the detailed night charts. Pick as many nights as you like.</li>
+      </ol>
+      <div class="row">
+        <label class="btn primary">Choose files<input type="file" id="f-multi" multiple></label>
+        <label class="btn">Choose a folder<input type="file" id="f-dir" webkitdirectory multiple></label>
+      </div>
+      <div class="drop" id="drop">Or drop files or the whole SD card folder here</div>
+      <div class="bar" id="imp-bar" hidden><div></div></div>
+      <div class="log" id="imp-log" aria-live="polite"></div>
+    </div>
+    <div class="panel stack">
+      <h2>Stored on this device</h2>
+      <div id="store-info" class="muted num" style="font-size:.85rem"></div>
+      <div><button class="btn small danger" id="btn-clear">Delete all imported data</button></div>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in" role="tablist">
+    <button class="tab" role="tab" data-v="report" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 4.5V3.8A.8.8 0 0 1 9.8 3h4.4a.8.8 0 0 1 .8.8v.7"/><path d="M8.8 13.2l2.2 2.2 4.2-4.6"/></svg><span>Report</span></button>
+    <button class="tab" role="tab" data-v="overview" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><rect x="5.5" y="11" width="3.2" height="6.5" rx="1"/><rect x="10.4" y="6" width="3.2" height="11.5" rx="1"/><rect x="15.3" y="9" width="3.2" height="8.5" rx="1"/></svg><span>Charts</span></button>
+    <button class="tab" role="tab" data-v="night" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.6A7.9 7.9 0 0 1 9.4 4.5a7.9 7.9 0 1 0 10.1 10.1z"/><path d="M16.5 4.2v2.6M15.2 5.5h2.6"/></svg><span>Night</span></button>
+    <button class="tab" role="tab" data-v="import" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10.2"/><path d="M8 10.4l4 4 4-4"/><path d="M5 15.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2.5"/></svg><span>Import</span></button>
+  </div>
+</nav>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const pad = n => String(n).padStart(2, '0');
+const DAY = 86400000;
+// All EDF timestamps are the machine's wall clock. They are held as UTC milliseconds and always formatted with UTC getters, so no timezone or DST shift can creep in.
+const keyOf = ms => { const d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); };
+const msOfKey = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+const fmtDay = (k, long) => { const d = new Date(msOfKey(k)); return (long ? DOW[d.getUTCDay()] + ', ' : '') + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + (long ? ', ' + d.getUTCFullYear() : ''); };
+const fmtHM = ms => { const d = new Date(ms); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+const fmtHMS = ms => { const d = new Date(ms); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()); };
+const hrs = min => (min / 60).toFixed(1);
+const hm = min => Math.floor(min / 60) + ' h ' + pad(Math.round(min % 60)) + ' m';
+const f1 = v => v == null ? '–' : v.toFixed(1);
+const f0 = v => v == null ? '–' : Math.round(v).toString();
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+/* ---------- EDF parsing ---------- */
+function parseEDF(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  const txt = (o, n) => { let s = ''; for (let i = o; i < o + n; i++) s += String.fromCharCode(u8[i]); return s.trim(); };
+  const hdrBytes = +txt(184, 8), nrec = +txt(236, 8), dur = +txt(244, 8), ns = +txt(252, 4);
+  if (!(ns > 0) || !(nrec >= 0) || !(dur >= 0)) throw new Error('Not a valid EDF file');
+  let o = 256;
+  const rd = n => { const r = []; for (let i = 0; i < ns; i++) r.push(txt(o + i * n, n)); o += ns * n; return r; };
+  const label = rd(16); rd(80); rd(8);
+  const pmin = rd(8).map(Number), pmax = rd(8).map(Number), dmin = rd(8).map(Number), dmax = rd(8).map(Number);
+  rd(80);
+  const spr = rd(8).map(Number); rd(32);
+  const gain = label.map((_, i) => (pmax[i] - pmin[i]) / (dmax[i] - dmin[i]) || 1);
+  const off = label.map((_, i) => pmin[i] - dmin[i] * gain[i]);
+  const isAnn = label.map(l => l === 'EDF Annotations');
+  const tot = spr.reduce((a, b) => a + b, 0);
+  const sig = label.map((_, i) => isAnn[i] ? null : new Int16Array(nrec * spr[i]));
+  const anns = [];
+  for (let r = 0; r < nrec; r++) {
+    let k = hdrBytes + r * tot * 2;
+    for (let s = 0; s < ns; s++) {
+      if (isAnn[s]) {
+        let str = '';
+        for (let j = 0; j < spr[s] * 2; j++) str += String.fromCharCode(u8[k + j]);
+        for (const tal of str.split('\0')) {
+          if (!tal) continue;
+          const parts = tal.split('\x14');
+          const m = parts[0].match(/^([+-]\d+(?:\.\d+)?)(?:\x15(\d+(?:\.\d+)?))?$/);
+          if (!m) continue;
+          for (let p = 1; p < parts.length; p++) if (parts[p]) anns.push({ onset: +m[1], dur: m[2] ? +m[2] : 0, text: parts[p] });
+        }
+      } else {
+        const a = sig[s], base = r * spr[s];
+        for (let j = 0; j < spr[s]; j++) a[base + j] = dv.getInt16(k + j * 2, true);
+      }
+      k += spr[s] * 2;
+    }
+  }
+  return { label, spr, gain, off, sig, anns, nrec, dur };
+}
+
+/* ---------- STR.edf (one record per day, noon to noon) ---------- */
+function strNights(p) {
+  const L = {}; p.label.forEach((l, i) => { L[l] = i; });
+  const out = [];
+  const v = (name, d, scale = 1) => {
+    const i = L[name]; if (i == null) return null;
+    const raw = p.sig[i][d * p.spr[i]];
+    return raw < 0 ? null : (raw * p.gain[i] + p.off[i]) * scale;
+  };
+  for (let d = 0; d < p.nrec; d++) {
+    const dayRaw = p.sig[L.Date][d];
+    if (!(dayRaw > 0)) continue;
+    const on = v('OnDuration', d);
+    if (!(on > 0)) continue;
+    const dayMs = dayRaw * DAY;
+    const sessions = [];
+    for (let k = 0; k < 10; k++) {
+      const a = p.sig[L.MaskOn][d * 10 + k], b = p.sig[L['MaskOff']][d * 10 + k];
+      if (a >= 0 && b >= 0 && b > a) sessions.push({ on: dayMs + 12 * 3600000 + a * 60000, off: dayMs + 12 * 3600000 + b * 60000 });
+    }
+    out.push({
+      key: keyOf(dayMs), hasStr: true, min: on, sessions, maskEvents: v('MaskEvents', d),
+      ahi: v('AHI', d), hi: v('HI', d), ai: v('AI', d),
+      leak50: v('Leak.50', d, 60), leak95: v('Leak.95', d, 60), leakMax: v('Leak.Max', d, 60),
+      mp50: v('MaskPress.50', d), mp95: v('MaskPress.95', d), mpMax: v('MaskPress.Max', d),
+      rr50: v('RespRate.50', d), rr95: v('RespRate.95', d),
+      tv50: v('TidVol.50', d, 1000), tv95: v('TidVol.95', d, 1000),
+      mv50: v('MinVent.50', d), mv95: v('MinVent.95', d),
+    });
+  }
+  return out;
+}
+
+/* ---------- DATALOG files ---------- */
+function stampMs(name) { // 20261007_232933
+  const m = name.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_/);
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+}
+function nightKeyForStart(ms) { return keyOf(ms - 12 * 3600000); }
+function convertSession(type, name, p) {
+  const start = stampMs(name);
+  const end = start + p.nrec * p.dur * 1000;
+  const rec = { id: name.replace(/\.edf$/i, ''), type, start, end, night: nightKeyForStart(start) };
+  if (type === 'BRP') {
+    const fi = p.label.findIndex(l => /^Flow/.test(l)), pi = p.label.findIndex(l => /^Press/.test(l));
+    const rate = p.spr[fi] / p.dur;
+    rec.flow = { rate, data: p.sig[fi], gain: p.gain[fi] * 60, off: p.off[fi] * 60 };
+    if (pi >= 0) {
+      const src = p.sig[pi], step = 5, n = Math.floor(src.length / step), d = new Int16Array(n);
+      for (let i = 0; i < n; i++) { let mx = 0; for (let j = 0; j < step; j++) mx = Math.max(mx, src[i * step + j]); d[i] = mx; }
+      rec.press = { rate: rate / step, data: d, gain: p.gain[pi], off: p.off[pi] };
+    }
+  } else if (type === 'PLD') {
+    rec.sigs = {};
+    p.label.forEach((l, i) => {
+      if (!p.sig[i] || l === 'Crc16') return;
+      const name2 = l.replace(/\.\d+s$/, '');
+      const src = p.sig[i], f = new Float32Array(src.length);
+      for (let j = 0; j < src.length; j++) f[j] = src[j] < 0 ? NaN : src[j] * p.gain[i] + p.off[i];
+      rec.sigs[name2] = { rate: p.spr[i] / p.dur, data: f };
+    });
+  } else if (type === 'EVE') {
+    // ResMed stamps an event when it is detected, so the stamp is the END of the event. Checked against this machine's flow: the flat stretches sit just before each stamp. Hypopneas carry no duration, so a 10 s window is assumed.
+    rec.events = p.anns.filter(a => !/^Recording/i.test(a.text)).map(a => { const est = !(a.dur > 0), dur = est ? 10 : a.dur; return { t: start + a.onset * 1000 - dur * 1000, dur, est, label: a.text }; });
+    rec.start = start;
+  } else if (type === 'SAD') {
+    const pu = p.label.findIndex(l => /^Pulse/.test(l)), sp = p.label.findIndex(l => /^SpO2/.test(l));
+    const has = sp >= 0 && p.sig[sp].some(x => x > 0 && x <= 100);
+    if (!has) return null;
+    rec.spo2 = { rate: p.spr[sp] / p.dur, data: Float32Array.from(p.sig[sp], x => x < 0 ? NaN : x * p.gain[sp] + p.off[sp]) };
+    rec.pulse = { rate: p.spr[pu] / p.dur, data: Float32Array.from(p.sig[pu], x => x < 0 ? NaN : x * p.gain[pu] + p.off[pu]) };
+  }
+  return rec;
+}
+
+/* ---------- Storage (IndexedDB, in-memory if the browser refuses) ---------- */
+const DB = {
+  db: null, mem: { nights: new Map(), files: new Map() }, useMem: false,
+  async open() {
+    try {
+      this.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('cpap-ledger', 1);
+        r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('nights', { keyPath: 'key' }); d.createObjectStore('files', { keyPath: 'id' }).createIndex('night', 'night'); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked'));
+      });
+    } catch (e) { this.useMem = true; }
+  },
+  req(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const tx = this.db.transaction(store, mode); const out = fn(tx.objectStore(store));
+      tx.oncomplete = () => res(out && 'result' in out ? out.result : undefined); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error || new Error('aborted'));
+    });
+  },
+  async put(store, val) { if (this.useMem) { this.mem[store].set(val.key ?? val.id, val); return; } return this.req(store, 'readwrite', s => { s.put(val); }); },
+  async putMany(store, vals) { if (this.useMem) { vals.forEach(v => this.mem[store].set(v.key ?? v.id, v)); return; } return this.req(store, 'readwrite', s => { vals.forEach(v => s.put(v)); }); },
+  async all(store) { if (this.useMem) return [...this.mem[store].values()]; return this.req(store, 'readonly', s => s.getAll()); },
+  async get(store, key) { if (this.useMem) return this.mem[store].get(key); return this.req(store, 'readonly', s => s.get(key)); },
+  async filesFor(night) { if (this.useMem) return [...this.mem.files.values()].filter(f => f.night === night); return this.req('files', 'readonly', s => s.index('night').getAll(night)); },
+  async clear() { this.mem.nights.clear(); this.mem.files.clear(); if (!this.useMem) { await this.req('nights', 'readwrite', s => { s.clear(); }); await this.req('files', 'readwrite', s => { s.clear(); }); } },
+};
+
+/* ---------- State ---------- */
+const state = { nights: [], nmap: new Map(), keys: [], fileNights: new Set(), range: '90', hov: -1, view: 'overview', night: null, detail: null, importing: false };
+try { const r = localStorage.getItem('cpap-range'); if (r) state.range = r; } catch (e) {}
+
+async function refresh() {
+  const rows = await DB.all('nights');
+  const files = await DB.all('files');
+  state.fileNights = new Set(files.map(f => f.night));
+  const m = new Map(rows.map(r => [r.key, r]));
+  state.fileNights.forEach(k => { if (!m.has(k)) m.set(k, { key: k, hasStr: false }); });
+  state.keys = [...m.keys()].sort();
+  state.nmap = m;
+  state.nights = rows.filter(r => r.hasStr).sort((a, b) => a.key < b.key ? -1 : 1);
+}
+
+/* ---------- Canvas helpers ---------- */
+const colors = () => { const s = getComputedStyle(document.documentElement); const g = n => s.getPropertyValue(n).trim(); return { fg: g('--fg'), muted: g('--muted'), line: g('--line'), surface: g('--surface'), accent: g('--accent'), good: g('--good'), warn: g('--warn'), crit: g('--crit'), apnea: g('--apnea'), hypo: g('--hypo') }; };
+function setup(canvas, h) {
+  const dpr = window.devicePixelRatio || 1, w = Math.max(canvas.clientWidth || canvas.parentElement.clientWidth || 300, 100);
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
+
+/* ---------- Overview ---------- */
+function rangeDays() {
+  if (!state.nights.length) return [];
+  const lastMs = msOfKey(state.nights[state.nights.length - 1].key);
+  const firstMs = state.range === 'all' ? msOfKey(state.nights[0].key) : lastMs - (+state.range - 1) * DAY;
+  const days = [];
+  for (let ms = firstMs; ms <= lastMs; ms += DAY) days.push(keyOf(ms));
+  return days;
+}
+function sev(ahi) { return ahi == null ? '' : ahi < 5 ? 'good' : ahi < 15 ? 'warn' : 'crit'; }
+
+function drawSeries(canvas, days, vals, opt) {
+  const C = colors(); const { ctx, w, h } = setup(canvas, 150);
+  const padL = 34, padR = 8, padT = 8, padB = 20, pw = w - padL - padR, ph = h - padT - padB;
+  const present = vals.filter(v => v != null);
+  const ymax = niceMax(Math.max(opt.minMax, ...present, ...(opt.refs || []).map(r => r.v)) * 1.05);
+  const Y = v => padT + ph - (v / ymax) * ph, n = days.length, step = pw / n;
+  ctx.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--font-data'); ctx.textBaseline = 'middle';
+  const tick = ymax / 4;
+  for (let i = 0; i <= 4; i++) {
+    const v = tick * i, y = Y(v);
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y + .5); ctx.lineTo(w - padR, y + .5); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.fillText(Number.isInteger(v) ? v : v.toFixed(1), padL - 6, y);
+  }
+  // x labels
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.muted;
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 62))));
+  for (let i = 0; i < n; i += every) { const x = padL + (i + .5) * step; if (x > padL + 16 && x < w - 20) ctx.fillText(fmtDay(days[i]), x, h - 5); }
+  (opt.refs || []).forEach(r => {
+    ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = C.muted; ctx.beginPath(); ctx.moveTo(padL, Y(r.v) + .5); ctx.lineTo(w - padR, Y(r.v) + .5); ctx.stroke(); ctx.restore();
+  });
+  if (opt.type === 'bar') {
+    const bw = Math.max(1, step * 0.72);
+    vals.forEach((v, i) => { if (v == null) return; ctx.fillStyle = opt.color(v, i, C); const hh = Math.max(1, (v / ymax) * ph); ctx.fillRect(padL + i * step + (step - bw) / 2, padT + ph - hh, bw, hh); });
+  } else {
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.beginPath(); let pen = false;
+    vals.forEach((v, i) => { if (v == null) { pen = false; return; } const x = padL + (i + .5) * step, y = Y(v); if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); });
+    ctx.stroke();
+    if (n <= 120) vals.forEach((v, i) => { if (v == null) return; ctx.fillStyle = v > (opt.refs?.[0]?.v ?? 1e9) ? C.crit : C.accent; ctx.beginPath(); ctx.arc(padL + (i + .5) * step, Y(v), 2.6, 0, 7); ctx.fill(); });
+  }
+  if (state.hov >= 0 && state.hov < n) {
+    const x = padL + (state.hov + .5) * step; ctx.strokeStyle = C.fg; ctx.globalAlpha = .55; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  canvas._lay = { padL, step, n };
+}
+
+function renderOverview() {
+  const has = state.nights.length > 0;
+  updateTopNote();
+  $$('#range-seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.r === state.range)));
+  const host = $('#view-overview');
+  $$('.ovx', host).forEach(e => e.remove());
+  const main = ['#ov-stats', '#ov-readout', '.chart', '.tablewrap', '.foot', '#range-seg'];
+  if (!has) {
+    $$('.chart, .tablewrap, #ov-readout, #ov-stats, .row.between', host).forEach(e => { e.hidden = true; });
+    const box = el('div', 'panel empty ovx');
+    box.append(el('h2', null, 'No sleep data yet'), el('p', null, 'Import STR.edf from your AirSense 10 SD card and this page fills with a year of nightly use, AHI and leak. Add DATALOG files to open any night as a flow chart.'));
+    const b = el('button', 'btn primary', 'Import SD card files'); b.onclick = () => go('import'); box.append(b);
+    host.prepend(box); return;
+  }
+  $$('.chart, .tablewrap, #ov-readout, #ov-stats, .row.between', host).forEach(e => { e.hidden = false; });
+  const days = rangeDays(); const vals = days.map(k => { const r = state.nmap.get(k); return r && r.hasStr ? r : null; });
+  $('#range-label').textContent = fmtDay(days[0]) + ' to ' + fmtDay(days[days.length - 1]);
+  // stats
+  const used = vals.filter(Boolean), totalMin = used.reduce((a, r) => a + r.min, 0);
+  const ge4 = used.filter(r => r.min >= 240).length;
+  const wAhi = totalMin ? used.reduce((a, r) => a + (r.ahi ?? 0) * r.min, 0) / totalMin : null;
+  const leaks = used.map(r => r.leak95).filter(v => v != null).sort((a, b) => a - b);
+  const medLeak = leaks.length ? leaks[Math.floor(leaks.length / 2)] : null;
+  const stats = $('#ov-stats'); stats.textContent = '';
+  const mk = (lab, val, unit, sub) => { const d = el('div', 'stat'); d.append(el('div', 'eyebrow', lab)); const v = el('div', 'v', val); if (unit) v.append(el('small', null, unit)); d.append(v, el('div', 's', sub)); stats.append(d); };
+  mk('Average use', (totalMin / days.length / 60).toFixed(1), 'h / night', 'Nights without use count as 0');
+  mk('Nights over 4 h', ge4 + ' of ' + days.length, '', Math.round(ge4 / days.length * 100) + '% of nights');
+  mk('Average AHI', f1(wAhi), '/ h', 'Weighted by hours of use');
+  mk('Typical leak', f1(medLeak), 'L/min', 'Median of nightly 95th percentile');
+  // charts
+  const mm = k => vals.map(r => r ? r[k] : null);
+  drawSeries($('#c-use'), days, vals.map(r => r ? r.min / 60 : null), { type: 'bar', minMax: 8, refs: [{ v: 4 }], color: (v, i, C) => v >= 4 ? C.accent : C.warn });
+  drawSeries($('#c-ahi'), days, mm('ahi'), { type: 'bar', minMax: 6, refs: [{ v: 5 }], color: (v, i, C) => v < 5 ? C.good : v < 15 ? C.warn : C.crit });
+  drawSeries($('#c-leak'), days, mm('leak95'), { type: 'line', minMax: 30, refs: [{ v: 24 }] });
+  renderReadout(days);
+  // table
+  const body = $('#ov-rows'); body.textContent = '';
+  for (let i = days.length - 1; i >= 0; i--) {
+    const r = vals[i]; if (!r) continue;
+    const tr = el('tr'); tr.tabIndex = 0;
+    const c0 = el('td'); const dot = el('span', 'dot ' + sev(r.ahi)); c0.append(dot, document.createTextNode(fmtDay(r.key, true)));
+    tr.append(c0);
+    [hm(r.min), f1(r.ahi), f1(r.ai), f1(r.hi), f1(r.leak95), f1(r.mp95)].forEach(t => tr.append(el('td', 'num', t)));
+    tr.onclick = () => openNight(r.key); tr.onkeydown = e => { if (e.key === 'Enter') openNight(r.key); };
+    body.append(tr);
+  }
+}
+function renderReadout(days) {
+  const box = $('#ov-readout'); box.textContent = '';
+  const r = state.hov >= 0 ? state.nmap.get(days[state.hov]) : null;
+  const top = el('div', 'rtop');
+  if (!r || !r.hasStr) {
+    top.append(el('div', 'r1 muted', state.hov >= 0 ? fmtDay(days[state.hov], true) : 'Pick a night'));
+    box.append(top, el('div', 'muted', state.hov >= 0 ? 'No use recorded' : 'Tap or hover a bar in any chart to see that night.')); return;
+  }
+  const b = el('button', 'btn small', 'Open night'); b.onclick = () => openNight(r.key);
+  top.append(el('div', 'r1', fmtDay(r.key, true)), b);
+  const st = el('div', 'rstats');
+  [['Use', hm(r.min)], ['AHI', f1(r.ahi)], ['Leak 95%', f1(r.leak95) + ' L/min']].forEach(([k, v]) => { const c = el('div'); c.append(el('div', 'k', k), el('div', 'v', v)); st.append(c); });
+  box.append(top, st);
+}
+function bindOverviewCharts() {
+  ['#c-use', '#c-ahi', '#c-leak'].forEach(id => {
+    const c = $(id);
+    const hit = e => { const L = c._lay; if (!L) return; const x = e.clientX - c.getBoundingClientRect().left; const i = Math.floor((x - L.padL) / L.step); const n = L.n; const nh = i >= 0 && i < n ? i : -1; if (nh !== state.hov) { state.hov = nh; renderOverview(); } };
+    c.addEventListener('pointerdown', hit); c.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') hit(e); });
+  });
+}
+
+/* ---------- Night view ---------- */
+const TRACKS = [
+  { id: 'flow', name: 'Flow', unit: 'L/min', h: 150, src: d => d.flow, mode: 'env', fixed: true },
+  { id: 'press', name: 'Pressure', unit: 'cmH₂O', h: 96, src: d => [d.sigs.MaskPress, d.sigs.Press], mode: 'env', min: 4, max: 16 },
+  { id: 'leak', name: 'Unintentional leak', unit: 'L/min', h: 96, src: d => d.sigs.Leak, scale: 60, mode: 'env', min: 0, max: 30, ref: 24 },
+  { id: 'rr', name: 'Respiratory rate', unit: 'breaths/min', h: 84, src: d => d.sigs.RespRate, mode: 'env', min: 0, max: 30 },
+  { id: 'tv', name: 'Tidal volume', unit: 'mL', h: 84, src: d => d.sigs.TidVol, scale: 1000, mode: 'env', min: 0, max: 1000 },
+  { id: 'mv', name: 'Minute ventilation', unit: 'L/min', h: 84, src: d => d.sigs.MinVent, mode: 'env', min: 0, max: 15 },
+  { id: 'snore', name: 'Snore index', unit: '', h: 60, src: d => d.sigs.Snore, mode: 'env', min: 0, max: 2 },
+  { id: 'fl', name: 'Flow limitation', unit: '0 to 1', h: 60, src: d => d.sigs.FlowLim, mode: 'env', min: 0, max: 1 },
+];
+const PADL = 42, PADR = 6;
+let view = { t0: 0, t1: 1 }, bounds = { t0: 0, t1: 1 }, cursor = null, raf = 0;
+
+function segsOf(src, scale = 1) { // normalise to [{t0, dt, data, gain, off}]
+  const list = Array.isArray(src) && src.length && Array.isArray(src[0]) || (Array.isArray(src) && src.some(x => Array.isArray(x))) ? src : [src];
+  const out = [];
+  list.forEach((grp, gi) => { if (!grp) return; (Array.isArray(grp) ? grp : [grp]).forEach(s => out.push({ t0: s.t0, dt: 1000 / s.rate, data: s.data, gain: (s.gain ?? 1) * scale, off: (s.off ?? 0) * scale, series: gi })); });
+  return out;
+}
+function buildDetail(files) {
+  const D = { flow: [], press: [], sigs: {}, events: [], spo2: [] };
+  let t0 = Infinity, t1 = -Infinity;
+  for (const f of files.sort((a, b) => a.start - b.start)) {
+    if (f.type === 'BRP' && f.flow) {
+      D.flow.push({ t0: f.start, rate: f.flow.rate, data: f.flow.data, gain: f.flow.gain, off: f.flow.off });
+      t0 = Math.min(t0, f.start); t1 = Math.max(t1, f.end);
+    } else if (f.type === 'PLD' && f.sigs) {
+      for (const [k, s] of Object.entries(f.sigs)) (D.sigs[k] = D.sigs[k] || []).push({ t0: f.start, rate: s.rate, data: s.data });
+      t0 = Math.min(t0, f.start); t1 = Math.max(t1, f.end);
+    } else if (f.type === 'EVE' && f.events) D.events.push(...f.events);
+  }
+  D.events.sort((a, b) => a.t - b.t);
+  D.hasWave = D.flow.length > 0 || Object.keys(D.sigs).length > 0;
+  if (!D.hasWave && D.events.length) { t0 = D.events[0].t - 60000; t1 = D.events[D.events.length - 1].t + 60000; }
+  D.t0 = t0; D.t1 = t1;
+  return D;
+}
+function evKind(label) { return /hypo/i.test(label) ? 'hypo' : 'apnea'; }
+function evName(label) { return label; }
+
+async function openNight(key) { state.night = key; go('night'); await loadNight(key); }
+async function loadNight(key) {
+  const rec = state.nmap.get(key);
+  $('#n-title').textContent = fmtDay(key, true);
+  $('#n-date').value = key;
+  const idx = state.keys.indexOf(key);
+  $('#n-prev').disabled = idx <= 0; $('#n-next').disabled = idx < 0 || idx >= state.keys.length - 1;
+  const tiles = $('#n-tiles'); tiles.textContent = '';
+  const mk = (lab, val, unit, sub) => { const d = el('div', 'tile'); d.append(el('div', 'eyebrow', lab)); const v = el('div', 'v', val); if (unit) v.append(el('small', null, unit)); d.append(v, el('div', 's', sub || ' ')); tiles.append(d); };
+  if (rec && rec.hasStr) {
+    mk('Used', hm(rec.min), '', (rec.sessions.length || 1) + (rec.sessions.length === 1 ? ' session' : ' sessions'));
+    mk('AHI', f1(rec.ahi), '/ h', 'Apnea ' + f1(rec.ai) + ' · Hypopnea ' + f1(rec.hi));
+    mk('Leak, 95%', f1(rec.leak95), 'L/min', 'Median ' + f1(rec.leak50) + ' · max ' + f1(rec.leakMax));
+    mk('Mask pressure, 95%', f1(rec.mp95), 'cmH₂O', 'Median ' + f1(rec.mp50) + ' · max ' + f1(rec.mpMax));
+    mk('Respiratory rate', f1(rec.rr50), '/ min', '95th ' + f1(rec.rr95));
+    mk('Tidal volume', f0(rec.tv50), 'mL', '95th ' + f0(rec.tv95));
+    mk('Minute ventilation', f1(rec.mv50), 'L/min', '95th ' + f1(rec.mv95));
+    $('#n-sessions').textContent = 'Mask on: ' + rec.sessions.map(s => fmtHM(s.on) + ' to ' + fmtHM(s.off)).join('  ·  ');
+  } else {
+    tiles.append(el('div', 'panel muted', 'No summary for this night. Import STR.edf to add the nightly numbers.'));
+    $('#n-sessions').textContent = '';
+  }
+  const files = await DB.filesFor(key);
+  const D = buildDetail(files);
+  state.detail = D;
+  $('#n-detail').hidden = !(D.hasWave || D.events.length);
+  $('#n-nodetail').hidden = D.hasWave || D.events.length > 0;
+  if (!(D.hasWave || D.events.length)) return;
+  bounds = { t0: D.t0, t1: D.t1 }; view = { t0: D.t0, t1: D.t1 }; cursor = null;
+  buildTracks(D); renderEvents(D); setZoomPressed('all');
+  requestAnimationFrame(() => schedule());
+}
+function buildTracks(D) {
+  const host = $('#tracks'); host.textContent = '';
+  D.tracks = [];
+  for (const def of TRACKS) {
+    const segs = segsOf(def.src(D), def.scale || 1);
+    if (!segs.length) continue;
+    // y range
+    let lo = def.min, hi = def.max;
+    if (def.fixed) { let mn = Infinity, mx = -Infinity; for (const s of segs) for (let i = 0; i < s.data.length; i += 3) { const v = s.data[i] * s.gain + s.off; if (v < mn) mn = v; if (v > mx) mx = v; } const m = Math.max(40, Math.ceil(Math.max(Math.abs(mn), Math.abs(mx)) / 20) * 20); lo = -m; hi = m; }
+    else { let mx = -Infinity, mn = Infinity; for (const s of segs) for (let i = 0; i < s.data.length; i++) { const v = s.data[i] * s.gain + s.off; if (v === v) { if (v > mx) mx = v; if (v < mn) mn = v; } } if (mx > hi) hi = Math.ceil(mx / (hi > 100 ? 100 : hi > 20 ? 5 : 1)) * (hi > 100 ? 100 : hi > 20 ? 5 : 1); if (mn < lo) lo = Math.floor(mn); }
+    const wrap = el('div', 'trk'); const hd = el('div', 'trk-h'); const nm = el('span', 'name', def.name); if (def.unit) nm.append(el('small', null, def.unit));
+    const val = el('span', 'val', ''); hd.append(nm, val);
+    const cv = document.createElement('canvas'); cv.dataset.t = def.id; wrap.append(hd, cv); host.append(wrap);
+    D.tracks.push({ def, segs, lo, hi, cv, val });
+  }
+}
+function xOf(t, w) { return PADL + (t - view.t0) / (view.t1 - view.t0) * (w - PADL - PADR); }
+function tOf(x, w) { return view.t0 + (x - PADL) / (w - PADL - PADR) * (view.t1 - view.t0); }
+
+function timeTicks(span, pw) {
+  const steps = [5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400].map(s => s * 1000);
+  const want = pw / 78; let st = steps[steps.length - 1];
+  for (const s of steps) if (span / s <= want) { st = s; break; }
+  return st;
+}
+function drawEnvelope(ctx, seg, lo, hi, x0, pw, y0, ph, color) {
+  const span = view.t1 - view.t0, k = pw / span;
+  const iA = Math.max(0, Math.floor((view.t0 - seg.t0) / seg.dt) - 1), iB = Math.min(seg.data.length - 1, Math.ceil((view.t1 - seg.t0) / seg.dt) + 1);
+  if (iB <= iA) return;
+  const Y = v => y0 + ph - (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * ph;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.lineJoin = 'round';
+  const pxPer = seg.dt * k;
+  if (pxPer >= 1.6) {
+    ctx.beginPath(); let pen = false;
+    for (let i = iA; i <= iB; i++) { const v = seg.data[i] * seg.gain + seg.off; if (v !== v) { pen = false; continue; } const x = x0 + (seg.t0 + i * seg.dt - view.t0) * k, y = Y(v); if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
+    ctx.stroke(); return;
+  }
+  const W = Math.ceil(pw) + 2, mn = new Float32Array(W).fill(Infinity), mx = new Float32Array(W).fill(-Infinity);
+  for (let i = iA; i <= iB; i++) { const v = seg.data[i] * seg.gain + seg.off; if (v !== v) continue; const c = Math.floor((seg.t0 + i * seg.dt - view.t0) * k); if (c < 0 || c >= W) continue; if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; }
+  ctx.beginPath(); let prevMid = null;
+  for (let c = 0; c < W; c++) { if (mn[c] === Infinity) { prevMid = null; continue; } const x = x0 + c + .5; let ya = Y(mx[c]), yb = Y(mn[c]); if (yb - ya < 1) { ya -= .5; yb += .5; } ctx.moveTo(x, ya); ctx.lineTo(x, yb); }
+  ctx.stroke();
+}
+function drawTrack(T, C, D) {
+  const { def, segs, lo, hi, cv } = T;
+  const { ctx, w, h } = setup(cv, def.h);
+  const pw = w - PADL - PADR, y0 = 6, ph = h - 12;
+  const Y = v => y0 + ph - (v - lo) / (hi - lo) * ph;
+  ctx.font = '10.5px ' + getComputedStyle(document.body).getPropertyValue('--font-data');
+  // horizontal grid and labels
+  const ticks = def.fixed ? [lo, lo / 2, 0, hi / 2, hi] : [lo, (lo + hi) / 2, hi];
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of ticks) { const y = Y(v); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PADL, y + .5); ctx.lineTo(w - PADR, y + .5); ctx.stroke(); ctx.fillStyle = C.muted; ctx.fillText(Number.isInteger(v) ? v : v.toFixed(1), PADL - 6, Math.min(Math.max(y, 8), h - 8)); }
+  // vertical grid
+  const st = timeTicks(view.t1 - view.t0, pw);
+  for (let t = Math.ceil(view.t0 / st) * st; t < view.t1; t += st) { const x = Math.round(xOf(t, w)) + .5; ctx.strokeStyle = C.line; ctx.globalAlpha = .55; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + ph); ctx.stroke(); ctx.globalAlpha = 1; }
+  // event bands
+  for (const e of D.events) {
+    const dur = (e.dur || 10) * 1000; if (e.t + dur < view.t0 || e.t > view.t1) continue;
+    const xa = xOf(e.t, w), xb = Math.max(xOf(e.t + dur, w), xa + 2);
+    ctx.fillStyle = evKind(e.label) === 'hypo' ? C.hypo : C.apnea; ctx.globalAlpha = .22; ctx.fillRect(xa, y0, xb - xa, ph); ctx.globalAlpha = 1;
+  }
+  // reference line
+  if (def.ref != null) { ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = C.crit; ctx.globalAlpha = .8; ctx.beginPath(); ctx.moveTo(PADL, Y(def.ref) + .5); ctx.lineTo(w - PADR, Y(def.ref) + .5); ctx.stroke(); ctx.restore(); }
+  // gaps between sessions
+  // series
+  ctx.save(); ctx.beginPath(); ctx.rect(PADL, 0, pw, h); ctx.clip();
+  const multi = def.id === 'press';
+  segs.forEach(s => { const colr = multi && s.series === 1 ? C.muted : C.accent; drawEnvelope(ctx, s, lo, hi, PADL, pw, y0, ph, colr); });
+  ctx.restore();
+  if (def.fixed) { ctx.strokeStyle = C.muted; ctx.globalAlpha = .6; const y = Y(0) + .5; ctx.beginPath(); ctx.moveTo(PADL, y); ctx.lineTo(w - PADR, y); ctx.stroke(); ctx.globalAlpha = 1; }
+  if (cursor != null && cursor >= view.t0 && cursor <= view.t1) { const x = Math.round(xOf(cursor, w)) + .5; ctx.strokeStyle = C.fg; ctx.globalAlpha = .7; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); ctx.globalAlpha = 1; }
+}
+function drawAxis(C) {
+  const cv = $('#c-axis'); const { ctx, w, h } = setup(cv, 22);
+  ctx.font = '10.5px ' + getComputedStyle(document.body).getPropertyValue('--font-data'); ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const st = timeTicks(view.t1 - view.t0, w - PADL - PADR);
+  for (let t = Math.ceil(view.t0 / st) * st; t < view.t1; t += st) { const x = xOf(t, w); if (x < PADL + 14 || x > w - 16) continue; ctx.fillText(st < 60000 ? fmtHMS(t) : fmtHM(t), x, 11); }
+}
+function drawOverviewStrip(C, D) {
+  const cv = $('#c-over'); const { ctx, w, h } = setup(cv, 56);
+  const pw = w - PADL - PADR, span = bounds.t1 - bounds.t0 || 1, X = t => PADL + (t - bounds.t0) / span * pw;
+  ctx.fillStyle = C.line; ctx.globalAlpha = .35; ctx.fillRect(PADL, 4, pw, h - 8); ctx.globalAlpha = 1;
+  const flowT = D.tracks.find(t => t.def.id === 'flow');
+  if (flowT) {
+    ctx.strokeStyle = C.accent; ctx.globalAlpha = .75; ctx.lineWidth = 1;
+    for (const s of flowT.segs) {
+      const W = Math.ceil(pw) + 1, mn = new Float32Array(W).fill(Infinity), mx = new Float32Array(W).fill(-Infinity), k = pw / span;
+      const stride = Math.max(1, Math.floor(s.data.length / (W * 6)));
+      for (let i = 0; i < s.data.length; i += stride) { const v = s.data[i] * s.gain + s.off, c = Math.floor((s.t0 + i * s.dt - bounds.t0) * k); if (c < 0 || c >= W) continue; if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; }
+      ctx.beginPath(); const m = flowT.hi;
+      for (let c = 0; c < W; c++) { if (mn[c] === Infinity) continue; const x = PADL + c + .5; ctx.moveTo(x, 4 + (h - 8) * (.5 - mx[c] / (2 * m))); ctx.lineTo(x, 4 + (h - 8) * (.5 - mn[c] / (2 * m)) + 1); }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  for (const e of D.events) { const x = X(e.t); ctx.fillStyle = evKind(e.label) === 'hypo' ? C.hypo : C.apnea; ctx.fillRect(x - 1, 2, 2.4, h - 4); }
+  // viewport
+  const xa = X(view.t0), xb = X(view.t1);
+  ctx.fillStyle = C.accent; ctx.globalAlpha = .18; ctx.fillRect(xa, 0, Math.max(xb - xa, 3), h); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.strokeRect(xa + .5, .5, Math.max(xb - xa, 3) - 1, h - 1);
+  ctx.font = '10.5px ' + getComputedStyle(document.body).getPropertyValue('--font-data'); ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(fmtHM(bounds.t0), PADL - 6, h / 2);
+}
+function renderDetail() {
+  raf = 0; const D = state.detail; if (!D || !D.tracks || $('#n-detail').hidden || state.view !== 'night') return;
+  const C = colors();
+  drawOverviewStrip(C, D); drawAxis(C);
+  D.tracks.forEach(T => drawTrack(T, C, D));
+  updateReadout(D);
+}
+function schedule() { if (!raf) raf = requestAnimationFrame(renderDetail); }
+function valueAt(T, t) {
+  const out = [];
+  for (const s of T.segs) { const i = Math.round((t - s.t0) / s.dt); if (i >= 0 && i < s.data.length) { const v = s.data[i] * s.gain + s.off; if (v === v) out.push(v); } }
+  return out;
+}
+function updateReadout(D) {
+  const r = $('#nt-readout');
+  if (cursor == null) { r.textContent = fmtHM(view.t0) + ' to ' + fmtHM(view.t1) + '  ·  ' + zoomLabel() + '  ·  drag to pan, tap to read values'; D.tracks.forEach(T => { T.val.textContent = ''; }); return; }
+  let ev = D.events.find(e => cursor >= e.t - 1000 && cursor <= e.t + (e.dur || 10) * 1000 + 1000);
+  r.textContent = fmtHMS(cursor) + (ev ? '  ·  ' + evName(ev.label) + (ev.est ? ' (about ' + ev.dur + ' s)' : ' ' + ev.dur + ' s') : '');
+  D.tracks.forEach(T => { const v = valueAt(T, cursor); T.val.textContent = v.length ? v.map(x => Math.abs(x) >= 100 ? x.toFixed(0) : x.toFixed(1)).join(' / ') : ''; });
+}
+function zoomLabel() { const s = (view.t1 - view.t0) / 1000; return s >= 3600 ? (s / 3600).toFixed(1) + ' h visible' : s >= 60 ? (s / 60).toFixed(1) + ' min visible' : Math.round(s) + ' s visible'; }
+function setZoomPressed(z) { $$('#zoom-btns button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.z === z))); }
+function clampView() {
+  const full = bounds.t1 - bounds.t0; let span = Math.min(Math.max(view.t1 - view.t0, 15000), full);
+  let t0 = view.t0; if (t0 < bounds.t0) t0 = bounds.t0; if (t0 + span > bounds.t1) t0 = bounds.t1 - span;
+  view = { t0, t1: t0 + span };
+}
+function zoomTo(span, center) {
+  const full = bounds.t1 - bounds.t0; span = Math.min(Math.max(span, 15000), full);
+  const c = center ?? (view.t0 + view.t1) / 2; view = { t0: c - span / 2, t1: c + span / 2 }; clampView(); schedule();
+}
+function renderEvents(D) {
+  const list = $('#ev-list'); list.textContent = '';
+  const nA = D.events.filter(e => evKind(e.label) === 'apnea').length, nH = D.events.length - nA;
+  $('#ev-count').textContent = nA + ' apnea · ' + nH + ' hypopnea';
+  if (!D.events.length) { list.append(el('p', 'muted', 'No events recorded for this night.')); return; }
+  for (const e of D.events) {
+    const b = el('button'); b.append(el('span', 'num', fmtHMS(e.t)), el('span', null, evName(e.label)), el('span', 'num muted', e.est ? '~' + e.dur + ' s' : e.dur + ' s'));
+    b.onclick = () => { cursor = e.t + (e.dur || 0) * 500; zoomTo(120000, cursor); setZoomPressed('120'); $('#view-night').scrollIntoView({ block: 'start' }); const tw = $('.trackwrap'); window.scrollTo({ top: tw.getBoundingClientRect().top + scrollY - 70, behavior: 'smooth' }); };
+    list.append(b);
+  }
+}
+function bindDetail() {
+  $('#zoom-btns').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || !state.detail) return; const z = b.dataset.z;
+    if (z === 'all') { view = { ...bounds }; cursor = null; } else if (z === 'in') zoomTo((view.t1 - view.t0) / 2, cursor ?? undefined); else if (z === 'out') zoomTo((view.t1 - view.t0) * 2, cursor ?? undefined); else zoomTo(+z * 1000, cursor ?? undefined);
+    setZoomPressed(z === 'in' || z === 'out' ? '' : z); schedule();
+  });
+  // gestures on the stack of tracks
+  const host = $('#tracks'); const ax = $('#c-axis');
+  const pts = new Map(); let last = null, moved = 0, downT = 0, pinch = null;
+  const rectLeft = () => host.getBoundingClientRect().left;
+  const W = () => host.getBoundingClientRect().width;
+  const onDown = e => { host.setPointerCapture?.(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) { last = e.clientX; moved = 0; downT = performance.now(); } if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.abs(a.x - b.x) || 1, span: view.t1 - view.t0, cx: (a.x + b.x) / 2 }; } };
+  const onMove = e => {
+    if (!state.detail) return;
+    if (!pts.has(e.pointerId)) { if (e.pointerType === 'mouse') { cursor = tOf(e.clientX - rectLeft(), W()); schedule(); } return; }
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const w = W();
+    if (pts.size >= 2 && pinch) { const [a, b] = [...pts.values()]; const d = Math.abs(a.x - b.x) || 1; const c = tOf(pinch.cx - rectLeft(), w); const span = pinch.span * pinch.d / d; const f = (pinch.cx - rectLeft() - PADL) / (w - PADL - PADR); view = { t0: c - span * f, t1: c - span * f + span }; clampView(); setZoomPressed(''); schedule(); return; }
+    if (e.buttons === 0 && e.pointerType === 'mouse') return;
+    const dx = e.clientX - last; last = e.clientX; moved += Math.abs(dx);
+    const dt = dx / (w - PADL - PADR) * (view.t1 - view.t0); view = { t0: view.t0 - dt, t1: view.t1 - dt }; clampView(); schedule();
+  };
+  const onUp = e => {
+    if (pts.size === 1 && moved < 6 && performance.now() - downT < 400) { const t = tOf(e.clientX - rectLeft(), W()); cursor = (cursor != null && Math.abs(cursor - t) < (view.t1 - view.t0) * 0.01) ? null : t; schedule(); }
+    pts.delete(e.pointerId); pinch = null; if (pts.size === 1) { last = [...pts.values()][0].x; }
+  };
+  host.addEventListener('pointerdown', onDown); host.addEventListener('pointermove', onMove); host.addEventListener('pointerup', onUp); host.addEventListener('pointercancel', e => { pts.delete(e.pointerId); pinch = null; });
+  host.addEventListener('mouseleave', () => { cursor = null; schedule(); });
+  host.addEventListener('wheel', e => {
+    if (!state.detail) return;
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); const c = tOf(e.clientX - rectLeft(), W()); const f = (c - view.t0) / (view.t1 - view.t0); const span = (view.t1 - view.t0) * Math.exp(e.deltaY * 0.01); view = { t0: c - span * f, t1: c - span * f + span }; clampView(); setZoomPressed(''); schedule(); }
+    else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { e.preventDefault(); const dt = e.deltaX / (W() - PADL - PADR) * (view.t1 - view.t0); view = { t0: view.t0 + dt, t1: view.t1 + dt }; clampView(); schedule(); }
+  }, { passive: false });
+  // overview strip: tap or drag to move the window
+  const ov = $('#c-over'); let drag = false;
+  const setFromX = e => { const r = ov.getBoundingClientRect(); const f = (e.clientX - r.left - PADL) / (r.width - PADL - PADR); const c = bounds.t0 + Math.min(1, Math.max(0, f)) * (bounds.t1 - bounds.t0); const span = view.t1 - view.t0; view = { t0: c - span / 2, t1: c + span / 2 }; clampView(); schedule(); };
+  ov.addEventListener('pointerdown', e => { drag = true; ov.setPointerCapture(e.pointerId); setFromX(e); });
+  ov.addEventListener('pointermove', e => { if (drag) setFromX(e); });
+  ov.addEventListener('pointerup', () => { drag = false; });
+  ov.addEventListener('pointercancel', () => { drag = false; });
+  $('#n-prev').onclick = () => stepNight(-1); $('#n-next').onclick = () => stepNight(1);
+  $('#n-date').onchange = e => { const k = e.target.value; if (k && state.nmap.has(k)) openNight(k); else if (k) { $('#n-title').textContent = fmtDay(k, true); const t = $('#n-tiles'); t.textContent = ''; t.append(el('div', 'panel muted', 'No data stored for ' + fmtDay(k, true) + '.')); $('#n-detail').hidden = true; $('#n-nodetail').hidden = true; $('#n-sessions').textContent = ''; } };
+}
+function stepNight(d) { const i = state.keys.indexOf(state.night) + d; if (i >= 0 && i < state.keys.length) openNight(state.keys[i]); }
+
+
+/* ---------- Report card ---------- */
+try { const r = localStorage.getItem('cpap-rperiod'); if (r === '30' || r === '90') state.rperiod = r; } catch (e) {}
+state.rperiod = state.rperiod || '30';
+const median = a => { const b = [...a].sort((x, y) => x - y); return b.length ? (b.length % 2 ? b[(b.length - 1) / 2] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2) : null; };
+const clockOf = minSinceNoon => { const m = ((Math.round(minSinceNoon) + 720) % 1440 + 1440) % 1440, h = Math.floor(m / 60), mm = m % 60; return ((h + 11) % 12 + 1) + ':' + pad(mm) + ' ' + (h < 12 ? 'AM' : 'PM'); };
+function periodStats(back, N) {
+  const lastMs = msOfKey(state.nights[state.nights.length - 1].key) - back * DAY;
+  const keys = []; for (let i = N - 1; i >= 0; i--) keys.push(keyOf(lastMs - i * DAY));
+  const recs = keys.map(k => { const r = state.nmap.get(k); return r && r.hasStr ? r : null; });
+  const used = recs.filter(Boolean), totalMin = used.reduce((a, r) => a + r.min, 0);
+  const firstOK = state.nights[0].key <= keys[0];
+  const starts = used.filter(r => r.sessions.length).map(r => (r.sessions[0].on - msOfKey(r.key) - 43200000) / 60000);
+  const mean = starts.length ? starts.reduce((a, b) => a + b, 0) / starts.length : 0;
+  const sd = starts.length ? Math.sqrt(starts.reduce((a, b) => a + (b - mean) * (b - mean), 0) / starts.length) : null;
+  const shortOffs = used.filter(r => r.min < 240 && r.sessions.length).map(r => (r.sessions[r.sessions.length - 1].off - msOfKey(r.key) - 43200000) / 60000);
+  const leaks = used.map(r => r.leak95).filter(v => v != null);
+  return {
+    N, keys, recs, used, n: used.length, firstOK,
+    ge4: used.filter(r => r.min >= 240).length,
+    avgAll: totalMin / N / 60, avgUsed: used.length ? totalMin / used.length / 60 : null,
+    ahi: totalMin ? used.reduce((a, r) => a + (r.ahi ?? 0) * r.min, 0) / totalMin : null,
+    ahiHigh: used.filter(r => (r.ahi ?? 0) >= 5).length,
+    medLeak: median(leaks), leakHigh: used.filter(r => (r.leak95 ?? 0) > 24).length,
+    startMed: starts.length >= 5 ? median(starts) : null, startSD: starts.length >= 5 ? sd : null,
+    shortNights: shortOffs.length, shortOffMed: shortOffs.length >= 3 ? median(shortOffs) : null,
+  };
+}
+const GWORD = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Needs work', N: 'Not enough data' };
+function buildCards(P) {
+  const pct = P.ge4 / P.N * 100, N = P.N, days = N + ' days';
+  const cards = [];
+  { // how often
+    const g = pct >= 90 ? 'A' : pct >= 70 ? 'B' : pct >= 50 ? 'C' : 'D', miss = N - P.ge4;
+    const plain = { A: 'You wore it long enough on nearly every night. That steady habit is what makes treatment work.', B: 'Most nights you cleared 4 hours. A few misses are normal.', C: miss + ' of the last ' + N + ' nights had no use or fewer than 4 hours, so a lot of nights went untreated.', D: 'Most nights fell short of 4 hours or had no use at all.' }[g];
+    cards.push({ id: 'use', g, label: 'Nights used', fig: P.ge4 + ' of ' + N, unit: 'nights over 4 h', plain,
+      explain: 'Sleep doctors and insurers commonly use 4 hours a night on at least 70% of nights as the bar for using CPAP enough. A night only counts when the mask was on, so a night with no use counts as a miss.',
+      tip: 'Tie putting the mask on to something you already do every night, like brushing your teeth, and aim for one more night a week than last month. If you skip it because of discomfort, tell your equipment provider. Mask fit and humidity are common fixes.',
+      good: 'Over 4 hours on ' + P.ge4 + ' of ' + N + ' nights', bad: 'Only ' + P.ge4 + ' of ' + N + ' nights reached 4 hours' });
+  }
+  if (P.avgUsed != null) { // how long
+    const a = P.avgUsed, g = a >= 7 ? 'A' : a >= 6 ? 'B' : a >= 5 ? 'C' : 'D';
+    let plain = { A: 'Close to a full night of sleep with the machine on.', B: 'Not quite a full night, but close.', C: 'Part of each night is without treatment, since most adults sleep 7 to 9 hours.', D: 'Nights usually end well before morning, so much of your sleep is untreated.' }[g];
+    if (P.shortOffMed != null && g !== 'A') plain += ' On the ' + P.shortNights + ' nights under 4 hours, the mask usually came off around ' + clockOf(P.shortOffMed) + '.';
+    cards.push({ id: 'len', g, label: 'Hours per night', fig: a.toFixed(1), unit: 'hours, on nights you used it', plain,
+      explain: 'Most adults need 7 to 9 hours of sleep. Breathing pauses can happen at any point in sleep, so hours with the mask off are not protected. Benefits generally grow with every extra hour on the machine.',
+      tip: P.shortOffMed != null ? 'Look at the nights that ended early. If the mask keeps coming off around ' + clockOf(P.shortOffMed) + ', that is the thing to fix. Leaks, a dry mouth, or taking it off half-asleep are common causes.' : 'If the mask comes off partway through the night, note roughly when. A repeating time points to the cause: leaks, a dry mouth, or taking it off half-asleep.',
+      good: 'Averaging ' + a.toFixed(1) + ' hours on nights you wear it', bad: 'Nights average ' + a.toFixed(1) + ' hours on the machine' });
+  }
+  if (P.ahi != null) { // events
+    const a = P.ahi, g = a < 3 ? 'A' : a < 5 ? 'B' : a < 10 ? 'C' : 'D';
+    const plain = { A: 'The machine counted about ' + a.toFixed(1) + ' breathing pauses or shallow breaths per hour. That is well under the usual target of 5, so your pressure is doing its job on the nights you wear it.', B: 'About ' + a.toFixed(1) + ' per hour, under the usual target of 5.', C: 'About ' + a.toFixed(1) + ' per hour, above the usual target of 5.', D: 'About ' + a.toFixed(1) + ' per hour, well above the usual target of 5.' }[g];
+    cards.push({ id: 'ahi', g, label: 'Breathing events', fig: a.toFixed(1), unit: 'per hour (AHI)', plain,
+      explain: 'AHI is the number of breathing pauses (apneas) and shallow breaths (hypopneas) per hour. Under 5 is generally considered well controlled, and lower is better. It only covers the hours the mask is on, and it is the machine\'s own count.' + (P.ahiHigh ? ' ' + P.ahiHigh + ' of your ' + P.n + ' nights were at 5 or above.' : ' None of your nights reached 5.'),
+      tip: 'Bring this report to your sleep doctor or equipment provider. A rising AHI can come from mask leak, a pressure setting that needs a change, or shifts in weight, medication or sleep position. This data cannot tell which.',
+      good: 'Breathing events are low at ' + a.toFixed(1) + ' per hour', bad: 'Breathing events at ' + a.toFixed(1) + ' per hour, above the usual target of 5' });
+  }
+  if (P.medLeak != null) { // seal
+    const m = P.medLeak, hp = P.leakHigh / P.n, g = (m < 12 && hp <= 0.10) ? 'A' : (m < 24 && hp <= 0.25) ? 'B' : m < 24 ? 'C' : 'D';
+    const plain = { A: 'Your mask sealed well. Leaks stayed small on almost every night.', B: 'The seal is mostly fine, with some leakier nights.', C: 'Leaks are running high on a good share of nights.', D: 'Leaks are large on most nights, which can weaken treatment.' }[g];
+    cards.push({ id: 'seal', g, label: 'Mask seal', fig: m.toFixed(1), unit: 'L/min, typical leak', plain,
+      explain: 'This is air escaping around the mask, beyond the normal vent holes. Small leaks are fine. Large ones (24 L/min or more) can weaken treatment and wake you. The figure is the level the leak stayed under for 95% of a typical night. ' + P.leakHigh + ' of ' + P.n + ' nights went above 24.',
+      tip: 'Refit the mask while lying in your usual sleeping position, and check whether the cushion is worn. Cushions break down with use, and replacing them on the maker\'s schedule often fixes leaks.',
+      good: 'Mask seal is good, typical leak ' + m.toFixed(1) + ' L/min', bad: 'Leak went above 24 L/min on ' + P.leakHigh + ' of ' + P.n + ' nights' });
+  }
+  if (P.startSD != null) { // routine
+    const sd = P.startSD, g = sd <= 45 ? 'A' : sd <= 75 ? 'B' : sd <= 120 ? 'C' : 'D';
+    const plain = 'You usually put the mask on around ' + clockOf(P.startMed) + ', give or take about ' + Math.round(sd / 5) * 5 + ' minutes.';
+    cards.push({ id: 'routine', g, label: 'Bedtime routine', fig: '±' + Math.round(sd / 5) * 5, unit: 'min, mask-on time', plain,
+      explain: 'A steady bedtime helps you fall asleep faster and makes the mask a habit. This is a habit measure, not a medical one: it is how much the time you put the mask on varies from night to night.',
+      tip: 'Pick a one hour window for putting the mask on and aim to stay inside it most nights.',
+      good: 'Steady bedtime, within about ' + Math.round(sd / 5) * 5 + ' minutes', bad: 'Mask-on time swings by about ' + Math.round(sd / 5) * 5 + ' minutes' });
+  }
+  return cards;
+}
+function trendRows(P, Q) {
+  const row = (label, now, before, fmt, higherBetter, tol, calm) => { const d = now - before; const kind = (Math.abs(d) <= tol || (calm != null && now < calm && before < calm)) ? 'same' : ((d > 0) === higherBetter ? 'better' : 'worse'); return { label, now: fmt(now), before: fmt(before), kind, up: d > 0, word: kind === 'same' ? 'Steady' : kind === 'better' ? 'Better' : 'Worse' }; };
+  const rows = [];
+  rows.push(row('Nights over 4 h', P.ge4 / P.N * 100, Q.ge4 / Q.N * 100, v => Math.round(v) + '%', true, 5));
+  rows.push(row('Hours per night, all nights', P.avgAll, Q.avgAll, v => v.toFixed(1) + ' h', true, 0.3));
+  if (P.ahi != null && Q.ahi != null) rows.push(row('Breathing events', P.ahi, Q.ahi, v => v.toFixed(1) + ' / h', false, 0.4, 3));
+  if (P.medLeak != null && Q.medLeak != null) rows.push(row('Typical leak', P.medLeak, Q.medLeak, v => v.toFixed(1) + ' L/min', false, 2, 12));
+  return rows;
+}
+function renderReport() {
+  const host = $('#view-report'); host.textContent = '';
+  updateTopNote();
+  if (!state.nights.length) {
+    const box = el('div', 'panel empty'); box.append(el('h2', null, 'No sleep data yet'), el('p', null, 'Import STR.edf from your AirSense 10 SD card and this page turns it into a plain-English report card.'));
+    const b = el('button', 'btn primary', 'Import SD card files'); b.onclick = () => go('import'); box.append(b); host.append(box); return;
+  }
+  const N = +state.rperiod, P = periodStats(0, N), lastKey = state.nights[state.nights.length - 1].key;
+  const top = el('div', 'row between'); const seg = el('div', 'seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Report period');
+  [['30', 'Last 30 days'], ['90', 'Last 90 days']].forEach(([v, t]) => { const b = el('button', null, t); b.setAttribute('aria-pressed', String(v === state.rperiod)); b.onclick = () => { state.rperiod = v; try { localStorage.setItem('cpap-rperiod', v); } catch (e) {} renderReport(); }; seg.append(b); });
+  top.append(seg, el('span', 'muted num', 'Through ' + fmtDay(lastKey, true)));
+  host.append(top);
+  if (P.n < 3) { const m = el('div', 'panel'); m.append(el('h2', null, 'Not enough nights to grade'), el('p', 'muted', 'Only ' + P.n + ' nights of use fall in this period. Try the 90 day view or import a newer STR.edf.')); host.append(m); return; }
+  const cards = buildCards(P);
+  const strong = cards.filter(c => c.g === 'A' || c.g === 'B'), weak = cards.filter(c => c.g === 'C' || c.g === 'D');
+  const Q = state.nights[0].key <= P.keys[0] ? periodStats(N, N) : null; const hasPrior = Q && Q.n > 0 && Q.firstOK;
+  const tr = hasPrior ? trendRows(P, Q) : [];
+  // quick-glance wording: one short line per grade, one short nudge per card
+  const QUICK = { use: { A: 'Nearly every night', B: 'Most nights', C: 'Many nights missed', D: 'Most nights missed' }, len: { A: 'Close to a full night', B: 'Almost a full night', C: 'Mask off too early', D: 'Nights end far too early' }, ahi: { A: 'Well controlled', B: 'Under the target', C: 'Above the target', D: 'Well above target' }, seal: { A: 'Sealing well', B: 'Mostly sealed', C: 'Some leaky nights', D: 'Leaking a lot' }, routine: { A: 'Steady bedtime', B: 'Fairly steady', C: 'Bedtime varies', D: 'Bedtime all over' } };
+  const NUDGE = { use: 'Tie the mask to brushing your teeth, and add one more night a week.', len: 'Note what time the mask comes off on short nights.', ahi: 'Show this report to your sleep doctor.', seal: 'Refit the mask and check the cushion for wear.', routine: 'Pick a one hour window for putting the mask on.' };
+  const NICK = { use: 'nights used', len: 'hours per night', ahi: 'breathing events', seal: 'mask seal', routine: 'bedtime' };
+  const ROWFIG = { use: [P.ge4 + '/' + N, 'nights over 4 h'], len: [P.avgUsed != null ? P.avgUsed.toFixed(1) + ' h' : '', 'per night used'], ahi: [P.ahi != null ? P.ahi.toFixed(1) : '', 'events per hour'], seal: [P.medLeak != null ? P.medLeak.toFixed(1) : '', 'L/min leak'], routine: [P.startSD != null ? '±' + Math.round(P.startSD / 5) * 5 : '', 'minutes'] };
+  const has = id => cards.find(c => c.id === id), good = id => { const c = has(id); return c && (c.g === 'A' || c.g === 'B'); };
+  let head;
+  if (!weak.length) head = 'All good. Keep it up.';
+  else if (good('ahi') && (!has('seal') || good('seal')) && weak.some(c => c.id === 'use' || c.id === 'len')) head = 'It works when you wear it. Wear it more.';
+  else if (has('ahi') && !good('ahi')) head = 'More breathing events than ideal. Talk to your sleep doctor.';
+  else head = 'Mostly solid. Work on ' + weak.map(c => NICK[c.id]).join(' and ') + '.';
+  const hp = el('div', 'panel'); hp.append(el('p', 'headline', head)); hp.lastChild.style.margin = '0';
+  host.append(hp);
+  // one compact row per area; tap a row for the plain-English detail
+  const rows = el('div', 'grows');
+  cards.forEach(c => {
+    const d = el('details', 'grow'); const sm = el('summary');
+    const mid = el('div', 'mid'); mid.append(el('b', null, c.label), el('span', null, QUICK[c.id][c.g]));
+    const rt = el('div', 'right'); rt.append(el('div', 'fig', ROWFIG[c.id][0]), el('div', 'u', ROWFIG[c.id][1]));
+    const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); chev.setAttribute('viewBox', '0 0 24 24'); chev.setAttribute('class', 'chev'); chev.setAttribute('aria-hidden', 'true'); const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path'); pth.setAttribute('d', 'M9 5l7 7-7 7'); chev.append(pth);
+    sm.append(el('div', 'grade g-' + c.g, c.g), mid, rt, chev); d.append(sm);
+    const body = el('div', 'body'); body.append(el('p', null, c.plain), el('p', 'muted', c.explain));
+    if (c.g === 'C' || c.g === 'D') { const tp = el('p'); const b = el('b', null, 'Try this: '); tp.append(b, document.createTextNode(c.tip)); body.append(tp); }
+    d.append(body); rows.append(d);
+  });
+  host.append(rows);
+  // single next step
+  const order = ['ahi', 'seal', 'use', 'len', 'routine'], rank = { D: 0, C: 1 };
+  const focus = weak.slice().sort((a, b) => (rank[a.g] - rank[b.g]) || (order.indexOf(a.id) - order.indexOf(b.id)))[0];
+  const nx = el('div', 'panel'); nx.append(el('div', 'eyebrow', 'Next step'), el('p', 'nextp', focus ? NUDGE[focus.id] : 'Nothing needs fixing. Keep going.')); host.append(nx);
+  // trend, as small tiles
+  if (tr.length) {
+    const wrap = el('div'); wrap.append(el('div', 'eyebrow', 'Vs. the ' + N + ' days before'));
+    const g2 = el('div', 'tiles2'); tr.forEach(t => { const x = el('div', 'tile2 ' + t.kind); x.append(el('div', 'eyebrow', t.label)); const v = el('div', 'v', t.now); v.append(el('i', null, t.kind === 'same' ? '→' : (t.up ? '↑' : '↓'))); x.append(v, el('div', 's', 'was ' + t.before + (t.kind === 'same' ? '' : (t.kind === 'better' ? ', better' : ', worse')))); g2.append(x); }); wrap.append(g2); host.append(wrap);
+  }
+  // calendar
+  const cal = el('div'); cal.append(el('div', 'eyebrow', 'Night by night, tap to open'));
+  const grd = el('div', 'cal'); grd.style.marginTop = '10px'; DOW.forEach(d => grd.append(el('span', 'dow', d[0])));
+  const first = new Date(msOfKey(P.keys[0])).getUTCDay(); for (let i = 0; i < first; i++) grd.append(el('span', 'blank'));
+  P.keys.forEach((k, i) => {
+    const r = P.recs[i]; const b = el('button', r ? (r.min >= 420 ? 'u2' : r.min >= 240 ? 'u1' : 'u0') : '', String(+k.slice(8)));
+    b.type = 'button'; b.setAttribute('aria-label', fmtDay(k, true) + ': ' + (r ? hm(r.min) + ' of use' : 'no use')); b.title = fmtDay(k, true) + (r ? ', ' + hm(r.min) : ', no use');
+    if (state.nmap.has(k)) b.onclick = () => openNight(k); else b.disabled = true;
+    grd.append(b);
+  });
+  cal.append(grd);
+  const lg = el('div', 'cal-legend'); [['u2', '7 h or more'], ['u1', '4 to 7 h'], ['u0', 'Under 4 h'], ['', 'No use']].forEach(([c, t]) => { const sp = el('span'); const i = el('i'); if (c === 'u2') i.style.background = 'var(--accent)'; else if (c === 'u1') i.style.background = 'var(--accent-soft)'; else if (c === 'u0') i.style.background = 'var(--warn-soft)'; sp.append(i, document.createTextNode(t)); lg.append(sp); });
+  cal.append(lg); host.append(cal);
+  host.append(el('p', 'foot', 'Plain-English reading of your machine\'s numbers. Not a diagnosis or medical advice.'));
+}
+function updateTopNote() { $('#top-note').textContent = state.nights.length ? state.nights.length + ' nights stored, latest ' + fmtDay(state.nights[state.nights.length - 1].key, true) : ''; }
+
+
+/* ---------- Page storage (the db capability): survives the browser clearing its own storage ---------- */
+// Only the nightly summaries from STR.edf are saved here (one small document per month, in this viewer's private area). Detailed waveform files stay in the browser.
+const Cloud = {
+  ok: false, col: null, known: new Map(), error: '',
+  async init() {
+    try {
+      if (!window.claude || !claude.use) return;
+      const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+      if (!db || !user) return;
+      const id = await user.id(); if (!id) return;
+      this.col = db.collection('data/users/' + id); this.ok = true;
+    } catch (e) { this.ok = false; }
+  },
+  async pull() {
+    const snap = await this.col.get(); const out = [];
+    snap.docs.forEach(d => { if (!d.id.startsWith('nights-')) return; const body = d.data() || {}; if (Array.isArray(body.nights)) { out.push(...body.nights); this.known.set(d.id, JSON.stringify(body.nights)); } });
+    return out;
+  },
+  async push(nights) {
+    let written = 0; this.error = '';
+    const byMonth = new Map();
+    nights.filter(n => n.hasStr).forEach(n => { const m = n.key.slice(0, 7); (byMonth.get(m) || byMonth.set(m, []).get(m)).push(n); });
+    for (const [m, list] of byMonth) {
+      list.sort((a, b) => a.key < b.key ? -1 : 1);
+      const id = 'nights-' + m, json = JSON.stringify(list);
+      if (this.known.get(id) === json) continue;
+      try { await this.col.doc(id).set({ nights: list }); this.known.set(id, json); written++; }
+      catch (e) { this.error = (e && e.message) || 'save failed'; break; }
+    }
+    return { written, error: this.error };
+  },
+  async wipe() { if (!this.ok) return; for (const id of [...this.known.keys()]) { try { await this.col.doc(id).delete(); this.known.delete(id); } catch (e) {} } },
+};
+async function syncFromCloud() {
+  await Cloud.init();
+  if (Cloud.ok) {
+    try {
+      const remote = await Cloud.pull(); const add = [];
+      for (const n of remote) { const l = state.nmap.get(n.key); if (!l || !l.hasStr || (n.min ?? 0) > (l.min ?? 0)) add.push(n); }
+      if (add.length) { await DB.putMany('nights', add); await refresh(); if (state.view === 'import' && !state.importing && state.nights.length) go('report'); else renderAll(); }
+      await Cloud.push(state.nights);
+    } catch (e) { Cloud.error = (e && e.message) || 'sync failed'; }
+  }
+  updateStoreInfo();
+}
+
+/* ---------- Import ---------- */
+const logBox = () => $('#imp-log');
+function log(s) { const b = logBox(); b.textContent += s + '\n'; b.scrollTop = b.scrollHeight; }
+const tick = () => new Promise(r => setTimeout(r, 0));
+async function importFiles(fileList) {
+  if (state.importing) return; state.importing = true;
+  const all = [...fileList];
+  const sessionRe = /^(\d{8}_\d{6})_(BRP|PLD|EVE|SAD)\.edf$/i;
+  const str = all.filter(f => /^STR\.edf$/i.test(f.name));
+  const sess = all.filter(f => sessionRe.test(f.name));
+  logBox().textContent = ''; const bar = $('#imp-bar'); bar.hidden = false; const fill = $('div', bar);
+  const total = str.length + sess.length; let done = 0;
+  const step = () => { done++; fill.style.width = (done / Math.max(total, 1) * 100) + '%'; };
+  if (!total) { log('No STR.edf or DATALOG .edf files found in that selection. The .crc files are not needed.'); bar.hidden = true; state.importing = false; return; }
+  let nStr = 0, nSess = 0, errs = 0; const touched = new Set();
+  try {
+    for (const f of str) {
+      try { log('Reading ' + f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)'); await tick(); const p = parseEDF(await f.arrayBuffer()); const nights = strNights(p); await DB.putMany('nights', nights); nStr += nights.length; log('  ' + nights.length + ' nights with use'); } catch (e) { errs++; log('  Could not read ' + f.name + ': ' + e.message); }
+      step();
+    }
+    sess.sort((a, b) => a.name < b.name ? -1 : 1);
+    let lastNight = null;
+    for (const f of sess) {
+      const m = f.name.match(sessionRe), type = m[2].toUpperCase();
+      try { const p = parseEDF(await f.arrayBuffer()); const rec = convertSession(type, f.name, p); if (rec) { await DB.put('files', rec); touched.add(rec.night); nSess++; } } catch (e) { errs++; log('Could not read ' + f.name + ': ' + (e && e.message || e)); }
+      step(); if (done % 6 === 0) { fill.style.width = (done / total * 100) + '%'; await tick(); }
+    }
+  } finally { state.importing = false; }
+  await refresh();
+  if (Cloud.ok && nStr) { log('Saving summaries to page storage'); const r = await Cloud.push(state.nights); log(r.error ? '  Could not save to page storage: ' + r.error : '  Saved (' + r.written + ' month' + (r.written === 1 ? '' : 's') + ' updated)'); }
+  log('Done. ' + nStr + ' nights of summary, ' + nSess + ' detail files across ' + touched.size + ' nights' + (errs ? ', ' + errs + ' problems' : '') + '.');
+  bar.hidden = true; renderAll(); updateStoreInfo();
+  if (touched.size) { const latest = [...touched].sort().pop(); log('Open the Night tab to see ' + fmtDay(latest, true) + '.'); }
+}
+async function updateStoreInfo() {
+  const box = $('#store-info'); const nSum = state.nights.length, nDet = state.fileNights.size;
+  let s = nSum + ' nights of summary · ' + nDet + ' nights of detail';
+  try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); if (e.usage != null) s += ' · ' + (e.usage / 1048576).toFixed(0) + ' MB used'; } } catch (e) {}
+  if (DB.useMem) s += ' · this browser blocked saving, so data is kept only until the page closes';
+  s += Cloud.ok ? (Cloud.error ? ' · page storage problem: ' + Cloud.error : ' · nightly summaries are also saved in this page\'s private storage and come back if the browser clears itself') : ' · page storage is not available in this view, so summaries live only in this browser';
+  box.textContent = s;
+}
+function bindImport() {
+  $('#f-multi').addEventListener('change', e => { importFiles(e.target.files).finally(() => { e.target.value = ''; }); });
+  $('#f-dir').addEventListener('change', e => { importFiles(e.target.files).finally(() => { e.target.value = ''; }); });
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', async e => {
+    const items = [...(e.dataTransfer.items || [])]; const files = [];
+    const walk = async entry => { if (entry.isFile) await new Promise(r => entry.file(f => { files.push(f); r(); }, r)); else if (entry.isDirectory) { const rd = entry.createReader(); let batch; do { batch = await new Promise(r => rd.readEntries(r, () => r([]))); for (const c of batch) await walk(c); } while (batch.length); } };
+    if (items.length && items[0].webkitGetAsEntry) { for (const it of items) { const en = it.webkitGetAsEntry(); if (en) await walk(en); } } else files.push(...e.dataTransfer.files);
+    importFiles(files);
+  });
+  let armed = 0; const btn = $('#btn-clear');
+  btn.addEventListener('click', async () => {
+    if (!armed) { btn.textContent = 'Tap again to delete everything'; armed = setTimeout(() => { armed = 0; btn.textContent = 'Delete all imported data'; }, 4000); return; }
+    clearTimeout(armed); armed = 0; btn.textContent = 'Delete all imported data'; await DB.clear(); await Cloud.wipe(); await refresh(); logBox().textContent = 'All imported data deleted.'; renderAll(); updateStoreInfo();
+  });
+}
+
+/* ---------- Navigation ---------- */
+function go(v) {
+  state.view = v;
+  ['report', 'overview', 'night', 'import'].forEach(n => { $('#view-' + n).hidden = n !== v; });
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.v === v)));
+  if (v === 'overview') renderOverview();
+  if (v === 'report') renderReport();
+  if (v === 'night') { if (!state.night) { const k = state.nights.length ? state.nights[state.nights.length - 1].key : state.keys[state.keys.length - 1]; if (k) { state.night = k; loadNight(k); } else { $('#n-title').textContent = 'No nights yet'; $('#n-tiles').textContent = ''; $('#n-tiles').append(el('div', 'panel muted', 'Import your SD card files first.')); } } else schedule(); }
+  if (v === 'import') updateStoreInfo();
+  window.scrollTo(0, 0);
+}
+function renderAll() { if (state.view === 'report') renderReport(); if (state.view === 'overview') renderOverview(); if (state.view === 'night' && state.night) loadNight(state.night); if (state.view === 'night' && !state.night) go('night'); }
+
+async function boot() {
+  await DB.open(); await refresh();
+  $$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.v)));
+  $$('#range-seg button').forEach(b => b.addEventListener('click', () => { state.range = b.dataset.r; state.hov = -1; try { localStorage.setItem('cpap-range', state.range); } catch (e) {} renderOverview(); }));
+  bindOverviewCharts(); bindDetail(); bindImport();
+  window.addEventListener('resize', () => { if (state.view === 'overview') renderOverview(); else if (state.view === 'night') schedule(); });
+  new MutationObserver(() => { if (state.view === 'overview') renderOverview(); else if (state.view === 'night') schedule(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.view === 'overview') renderOverview(); else if (state.view === 'night') schedule(); }); } catch (e) {}
+  go(state.nights.length ? 'report' : 'import');
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+  syncFromCloud();
+  window.__cpap = { state, openNight, importFiles, go };
+}
+boot();
+})();
+</script>
+
+</body></html>
