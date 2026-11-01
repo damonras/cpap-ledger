@@ -287,7 +287,9 @@ nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 
       <div class="row">
         <label class="btn primary">Choose files<input type="file" id="f-multi" multiple></label>
         <label class="btn">Choose a folder<input type="file" id="f-dir" webkitdirectory multiple></label>
+        <label class="btn">Load a backup (.json)<input type="file" id="f-backup" accept=".json,application/json" multiple></label>
       </div>
+      <p class="muted" style="margin:0;max-width:62ch;font-size:.85rem">No SD card handy? A backup .json of nightly summaries (such as cpap-nights.json) fills in the Report and Charts. Nights already imported from the SD card are kept unless the backup shows more use.</p>
       <div class="drop" id="drop">Or drop files or the whole SD card folder here</div>
       <div class="bar" id="imp-bar" hidden><div></div></div>
       <div class="log" id="imp-log" aria-live="polite"></div>
@@ -1081,18 +1083,46 @@ async function syncFromCloud() {
 const logBox = () => $('#imp-log');
 function log(s) { const b = logBox(); b.textContent += s + '\n'; b.scrollTop = b.scrollHeight; }
 const tick = () => new Promise(r => setTimeout(r, 0));
+// Backup .json: either an array of nights or { nights: [...] } (one month of page storage). Only known fields are kept.
+const NIGHT_NUMS = ['min', 'maskEvents', 'ahi', 'hi', 'ai', 'leak50', 'leak95', 'leakMax', 'mp50', 'mp95', 'mpMax', 'rr50', 'rr95', 'tv50', 'tv95', 'mv50', 'mv95'];
+function backupNights(text) {
+  const j = JSON.parse(text);
+  const list = Array.isArray(j) ? j : j && Array.isArray(j.nights) ? j.nights : null;
+  if (!list) throw new Error('no nights in this file');
+  const out = [];
+  for (const n of list) {
+    if (!n || typeof n.key !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(n.key) || !(n.min > 0)) continue;
+    const r = { key: n.key, hasStr: true, sessions: [] };
+    NIGHT_NUMS.forEach(k => { r[k] = typeof n[k] === 'number' && isFinite(n[k]) ? n[k] : null; });
+    if (Array.isArray(n.sessions)) n.sessions.forEach(s => { if (s && isFinite(s.on) && isFinite(s.off) && s.off > s.on) r.sessions.push({ on: +s.on, off: +s.off }); });
+    out.push(r);
+  }
+  return out;
+}
 async function importFiles(fileList) {
   if (state.importing) return; state.importing = true;
   const all = [...fileList];
   const sessionRe = /^(\d{8}_\d{6})_(BRP|PLD|EVE|SAD)\.edf$/i;
   const str = all.filter(f => /^STR\.edf$/i.test(f.name));
   const sess = all.filter(f => sessionRe.test(f.name));
+  const backups = all.filter(f => /\.json$/i.test(f.name));
   logBox().textContent = ''; const bar = $('#imp-bar'); bar.hidden = false; const fill = $('div', bar);
-  const total = str.length + sess.length; let done = 0;
+  const total = backups.length + str.length + sess.length; let done = 0;
   const step = () => { done++; fill.style.width = (done / Math.max(total, 1) * 100) + '%'; };
-  if (!total) { log('No STR.edf or DATALOG .edf files found in that selection. The .crc files are not needed.'); bar.hidden = true; state.importing = false; return; }
+  if (!total) { log(all.some(f => /\.csv$/i.test(f.name)) ? 'CSV files cannot be loaded. Choose the .json backup instead (for example cpap-nights.json).' : 'No STR.edf, DATALOG .edf or backup .json files found in that selection. The .crc files are not needed.'); bar.hidden = true; state.importing = false; return; }
   let nStr = 0, nSess = 0, errs = 0; const touched = new Set();
   try {
+    for (const f of backups) {
+      try {
+        log('Reading backup ' + f.name); await tick();
+        const nights = backupNights(await f.text());
+        const add = nights.filter(n => { const l = state.nmap.get(n.key); return !l || !l.hasStr || n.min > (l.min ?? 0); });
+        await DB.putMany('nights', add); nStr += add.length;
+        log('  ' + nights.length + ' nights in backup, ' + add.length + ' added or updated' + (nights.length > add.length ? ', ' + (nights.length - add.length) + ' already here' : ''));
+      } catch (e) { errs++; log('  Could not read ' + f.name + ': ' + e.message); }
+      step();
+    }
+    if (backups.length) await refresh();
     for (const f of str) {
       try { log('Reading ' + f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)'); await tick(); const p = parseEDF(await f.arrayBuffer()); const nights = strNights(p); await DB.putMany('nights', nights); nStr += nights.length; log('  ' + nights.length + ' nights with use'); } catch (e) { errs++; log('  Could not read ' + f.name + ': ' + e.message); }
       step();
@@ -1122,6 +1152,7 @@ async function updateStoreInfo() {
 function bindImport() {
   $('#f-multi').addEventListener('change', e => { importFiles(e.target.files).finally(() => { e.target.value = ''; }); });
   $('#f-dir').addEventListener('change', e => { importFiles(e.target.files).finally(() => { e.target.value = ''; }); });
+  $('#f-backup').addEventListener('change', e => { importFiles(e.target.files).finally(() => { e.target.value = ''; }); });
   const drop = $('#drop');
   ['dragenter', 'dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));

@@ -5,7 +5,7 @@ A single-page web app for reading the SD card from a ResMed AirSense 10 CPAP mac
 - **Report**: a plain-English report card for the last 30 or 90 days (nights used, hours per night, AHI, mask seal, bedtime routine).
 - **Charts**: nightly use, AHI and leak over 30 days, 90 days, a year or everything.
 - **Night**: a zoomable, time-aligned strip chart of flow, pressure, leak, respiratory rate, tidal volume, minute ventilation, snore and flow limitation, with apnea and hypopnea events marked.
-- **Import**: pick `STR.edf` and files from `DATALOG` (or the whole SD card folder).
+- **Import**: pick `STR.edf` and files from `DATALOG` (or the whole SD card folder), or load a backup `.json` of nightly summaries when the SD card isn't handy.
 
 ## Running it
 
